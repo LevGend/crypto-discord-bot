@@ -12,8 +12,7 @@ from typing import Optional
 from dotenv import load_dotenv
 
 # https://coinglass.github.io/API-Reference/#general-info
-TOKEN = "*********************************"
-
+TOKEN = "MTAyNTMyNjU0NjEyNDI3OTg1OA.Gs-_oc.8mvTWFFCRYX90Z91ijPip49e9R79LYUMMGwscA"
 load_dotenv()
 
 def does_token_exist(symbol):
@@ -108,9 +107,16 @@ class bot_discord():
     @bot.command()
     async def caroussel(message,*args):
         try:
+            token_list = ""
             with open('caroussel.csv','r') as csvfile:
                 data = csvfile.read()
-                await message.channel.send("Voici la liste des tokens dans le caroussel : " + data)
+                data = data.split(',')
+                for i in data:
+                    token_list = token_list + " " + i +","
+                await message.channel.send("Voici la liste des tokens dans le caroussel : " + token_list)
+
+
+
         except KeyError :
             await message.channel.send(KeyError)
 
@@ -200,7 +206,7 @@ def exchange_volume(symbole):
 
 def liquidation():
     #TODO
-    url = "https://open-api.coinglass.com/api/pro/v1/futures/liquidation/detail/chart?symbol=BTC&timeType=1"
+    url = "https://open-api.coinglass.com/api/pro/v1/futures/liquidation_chart?symbol=BTC&exName=Binance"
     params = {}
     headers = {
         'coinglassSecret': '178c860751e94b06b248766b0e6f6e4b'
@@ -208,9 +214,11 @@ def liquidation():
     response = requests.request("GET", url, headers=headers, data=params)
     response = response.json()
 
+    print(response)
+
 
 if __name__ == '__main__':
     # long_short_rate()
-    # liquidation()
-    bot_discord.bot.run('MTAyNTMyNjU0NjEyNDI3OTg1OA.GTBdzO.ejzbO43FgQp71n9ELI9zDnmAyGMEqO8x4LXvM4')
+    #liquidation()
+    bot_discord.bot.run(TOKEN)
     #exchange_volume("BTC")
