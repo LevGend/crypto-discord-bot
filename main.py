@@ -12,7 +12,7 @@ from typing import Optional
 from dotenv import load_dotenv
 
 # https://coinglass.github.io/API-Reference/#general-info
-TOKEN = "MTAyNTMyNjU0NjEyNDI3OTg1OA.GTBdzO.ejzbO43FgQp71n9ELI9zDnmAyGMEqO8x4LXvM4"
+TOKEN = "*********************************"
 
 load_dotenv()
 
