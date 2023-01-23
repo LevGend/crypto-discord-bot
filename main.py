@@ -1,6 +1,5 @@
 import asyncio
 import json
-
 import requests
 import discord
 from discord.ext import commands,tasks
@@ -24,18 +23,24 @@ def does_token_exist(symbol):
         return False
 
 def does_alert_exist(symbol,price):
-    data = read_file()
-    for obj in data:
-        if obj['Token'] == symbol and obj['Alert'] == price:
-            return True
+        data = read_file()
+        if data is not None:
+            for obj in data:
+                if obj['Token'] == symbol and obj['Alert'] == price:
+                    return True
+                else:
+                    return False
         else:
             return False
 
 
 def read_file():
-    with open(FILENAME,'r') as file:
-        data = json.load(file)
-        return data
+    try:
+        with open(FILENAME,'r') as file:
+            data = json.load(file)
+            return data
+    except:
+        pass
 
 def get_price(symbol):
     try:
@@ -81,6 +86,7 @@ class bot_discord():
                         pass
 
     ### ALERTES ###
+                #TODO : verifier si cela fonctionne + retirer l'alerte une fois qu'elle est vérifié
                 data = read_file()
                 for obj in data:
                     if get_price(obj['Token']) == obj['Alert']:
@@ -89,20 +95,23 @@ class bot_discord():
 
     #Ajoute un objet au fichier alerts.json
     @bot.command()
-    async def set_alert(message,symbol, price):
+    async def set_alert(message,symbol, price,*args):
         if does_token_exist(symbol):
             if not does_alert_exist(symbol, price):
-                data = read_file()
+                data= []
+                if read_file() != None:
+                    data.extend(read_file())
                 with open(FILENAME, 'w') as file:
                     jsonData = [{"Token": symbol, "Alert": price}]
                     data.extend(jsonData)
                     file = json.dump(data, file)
+                    await message.channel.send("⏰ Alerte programmé: {} à ${}".format(symbol,price))
             else:
                 await message.channel.send("L'alerte pour {} à ${} est déjà active".format(symbol, price))
 
     #Retire une alerte du fichier alerts.json
     @bot.command()
-    async def remove_alert(message,symbol, price):
+    async def remove_alert(message,symbol, price,*args):
         if does_alert_exist(symbol, price):
             data = read_file()
             newdata = []
@@ -117,12 +126,16 @@ class bot_discord():
         else:
             await message.channel.send("L'alerte {} à ${} n'existe pas".format(symbol, price))
 
-    async def alertlist(message):
+    @bot.command()
+    async def alertlist(message,*args):
         data = read_file()
-        msg="Il y a {} alertes actives :\n".format(len(data))
-        for obj in data:
-            msg=("{} à ${}\n".format(obj["Token"], obj["Alert"]))
-        await message.channel.send(msg)
+        if len(data) > 0:
+            msg="Il y a {} alertes actives :\n\n".format(len(data))
+            for obj in data:
+                msg=msg+("{} à ${}\n".format(obj["Token"], obj["Alert"]))
+            await message.channel.send(msg)
+        else:
+            await message.channel.send("Il n'y a pas d'alertes actives.")
 
     ### AJOUTE UN TOKEN AU FICHIER TXT ###
     @bot.command()
@@ -159,6 +172,7 @@ class bot_discord():
         except KeyError:
             await message.channel.send(symbol + " Non trouvé : " + KeyError)
 
+    ### AFFICHE LA LISTE DES TOKENS QUI TOURNENT DANS LE STATUT D'ACTIVITÉ ###
     @bot.command()
     async def caroussel(message,*args):
         try:
