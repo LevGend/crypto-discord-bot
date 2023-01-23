@@ -1,18 +1,17 @@
 import asyncio
-import csv
+import json
 
 import requests
-import os
 import discord
 from discord.ext import commands,tasks
-from discord.ext.commands import bot
-from typing import Optional
 
 
 from dotenv import load_dotenv
 
 # https://coinglass.github.io/API-Reference/#general-info
-TOKEN = "**********************************************************************"
+TOKEN = "***"
+FILENAME = "alerts.json"
+CHANNEL_ID = 991681642320109629 #trading channel kino's serveur
 load_dotenv()
 
 def does_token_exist(symbol):
@@ -24,6 +23,19 @@ def does_token_exist(symbol):
     else:
         return False
 
+def does_alert_exist(symbol,price):
+    data = read_file()
+    for obj in data:
+        if obj['Token'] == symbol and obj['Alert'] == price:
+            return True
+        else:
+            return False
+
+
+def read_file():
+    with open(FILENAME,'r') as file:
+        data = json.load(file)
+        return data
 
 def get_price(symbol):
     try:
@@ -68,6 +80,50 @@ class bot_discord():
                     else:
                         pass
 
+    ### ALERTES ###
+                data = read_file()
+                for obj in data:
+                    if get_price(obj['Token']) == obj['Alert']:
+                        channel = bot_discord.bot.get_channel(CHANNEL_ID)
+                        await channel.send('⚠️ Le token {} a atteint {}'.format(obj['Token'], obj['Alert']))
+
+    #Ajoute un objet au fichier alerts.json
+    @bot.command()
+    async def set_alert(message,symbol, price):
+        if does_token_exist(symbol):
+            if not does_alert_exist(symbol, price):
+                data = read_file()
+                with open(FILENAME, 'w') as file:
+                    jsonData = [{"Token": symbol, "Alert": price}]
+                    data.extend(jsonData)
+                    file = json.dump(data, file)
+            else:
+                await message.channel.send("L'alerte pour {} à ${} est déjà active".format(symbol, price))
+
+    #Retire une alerte du fichier alerts.json
+    @bot.command()
+    async def remove_alert(message,symbol, price):
+        if does_alert_exist(symbol, price):
+            data = read_file()
+            newdata = []
+            for obj in data:
+                if obj['Token'] == symbol and obj['Alert'] == price:
+                    await message.channel.send("{} et {}".format(obj['Token'], obj['Alert']))
+                else:
+                    newdata.append(obj)
+            with open(FILENAME, 'w') as file:
+                json.dump(newdata, file)
+
+        else:
+            await message.channel.send("L'alerte {} à ${} n'existe pas".format(symbol, price))
+
+    async def alertlist(message):
+        data = read_file()
+        msg="Il y a {} alertes actives :\n".format(len(data))
+        for obj in data:
+            msg=("{} à ${}\n".format(obj["Token"], obj["Alert"]))
+        await message.channel.send(msg)
+
     ### AJOUTE UN TOKEN AU FICHIER TXT ###
     @bot.command()
     async def addtoken(message,symbol,*args):
@@ -102,7 +158,6 @@ class bot_discord():
 
         except KeyError:
             await message.channel.send(symbol + " Non trouvé : " + KeyError)
-            print(KeyError)
 
     @bot.command()
     async def caroussel(message,*args):
@@ -197,13 +252,6 @@ def long_short_rate(var,symbol):
     elif(var == "longshortRate"):
         return response['data']['longShortRateList'][len(response['data']['longShortRateList']) - 1]
 
-def exchange_volume(symbole):
-    #TODO
-    url= "https://api.coingecko.com/api/v3/ping"
-
-    response = requests.request("GET", url)
-    response = response.json()
-
 def liquidation():
     #TODO
     url = "https://open-api.coinglass.com/api/pro/v1/futures/liquidation_chart?symbol=BTC&exName=Binance"
@@ -218,7 +266,4 @@ def liquidation():
 
 
 if __name__ == '__main__':
-    # long_short_rate()
-    #liquidation()
     bot_discord.bot.run(TOKEN)
-    #exchange_volume("BTC")
