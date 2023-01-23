@@ -3,15 +3,8 @@ import json
 import requests
 import discord
 from discord.ext import commands,tasks
-
-
 from dotenv import load_dotenv
 
-# https://coinglass.github.io/API-Reference/#general-info
-TOKEN = "***"
-FILENAME = "alerts.json"
-CHANNEL_ID = 991681642320109629 #trading channel kino's serveur
-load_dotenv()
 
 def does_token_exist(symbol):
     url = "https://api.coingecko.com/api/v3/simple/price?ids=" + symbol + "&vs_currencies=usd"
@@ -22,6 +15,18 @@ def does_token_exist(symbol):
     else:
         return False
 
+def remove_alert(symbol, price, *args):
+    if does_alert_exist(symbol, price):
+        data = read_file()
+        newdata = []
+        for obj in data:
+            if obj['Token'] == symbol and obj['Alert'] == price:
+                pass
+            else:
+                newdata.append(obj)
+            with open(FILENAME, 'w') as file:
+                json.dump(newdata, file)
+
 def does_alert_exist(symbol,price):
         data = read_file()
         if data is not None:
@@ -29,10 +34,9 @@ def does_alert_exist(symbol,price):
                 if obj['Token'] == symbol and obj['Alert'] == price:
                     return True
                 else:
-                    return False
+                    pass
         else:
             return False
-
 
 def read_file():
     try:
@@ -53,6 +57,11 @@ def get_price(symbol):
         return float(price)
     except KeyError:
         pass
+# https://coinglass.github.io/API-Reference/#general-info
+TOKEN = "***"
+FILENAME = "alerts.json"
+CHANNEL_ID = 1025021355562913863 #trading channel kino's serveur
+load_dotenv()
 
 async def changeActivity(bot):
     while True:
@@ -67,9 +76,23 @@ class bot_discord():
     intents.message_content = True
 
     bot = commands.Bot(intents=intents,command_prefix='!',description="En developpement..")
+    @tasks.loop(seconds=60)  # repeat after every 10 seconds
+    async def check_alerts(self, *args):
+        data = read_file()
+        for obj in data:
+            try:
+                if get_price(obj['Token']) >= float(obj['Alert']):
+                    channel = bot_discord.bot.get_channel(CHANNEL_ID)
+                    await channel.send('⚠️ Le token {} a atteint {}'.format(obj['Token'], obj['Alert']))
+                    remove_alert(obj['Token'], obj['Alert'])
+            except:
+                print("{} est au format {} >= {} au format {}".format(get_price(obj['Token']),
+                                                                      type(get_price(obj['Token'])),
+                                                                      float(obj['Alert']), type(float(obj['Alert']))))
 
     @bot.event
     async def on_ready():
+        #await bot_discord.check_alerts.start(bot_discord.bot)
         print("Anders est prêt !")
         ### Faire tourner les crypto présente sur le fichier caroussel ###
         while True:
@@ -84,14 +107,6 @@ class bot_discord():
                         await asyncio.sleep(10)
                     else:
                         pass
-
-    ### ALERTES ###
-                #TODO : verifier si cela fonctionne + retirer l'alerte une fois qu'elle est vérifié
-                data = read_file()
-                for obj in data:
-                    if get_price(obj['Token']) == obj['Alert']:
-                        channel = bot_discord.bot.get_channel(CHANNEL_ID)
-                        await channel.send('⚠️ Le token {} a atteint {}'.format(obj['Token'], obj['Alert']))
 
     #Ajoute un objet au fichier alerts.json
     @bot.command()
@@ -112,12 +127,14 @@ class bot_discord():
     #Retire une alerte du fichier alerts.json
     @bot.command()
     async def remove_alert(message,symbol, price,*args):
+        print( not does_alert_exist(symbol,price))
         if does_alert_exist(symbol, price):
             data = read_file()
             newdata = []
             for obj in data:
                 if obj['Token'] == symbol and obj['Alert'] == price:
-                    await message.channel.send("{} et {}".format(obj['Token'], obj['Alert']))
+                    await message.channel.send("L'alerte pour {} à {} est supprimée !".format(obj['Token'], obj['Alert']))
+                    remove_alert(obj['Token'],obj['Alert'])
                 else:
                     newdata.append(obj)
             with open(FILENAME, 'w') as file:
@@ -125,6 +142,14 @@ class bot_discord():
 
         else:
             await message.channel.send("L'alerte {} à ${} n'existe pas".format(symbol, price))
+
+    @bot.command()
+    async def clear_alerts(message,*args):
+        with open(FILENAME, 'w') as file:
+            jsonData = []
+            json.dump(jsonData, file)
+            await message.channel.send("🧹 Les alertes ont étés supprimés")
+
 
     @bot.command()
     async def alertlist(message,*args):
@@ -241,7 +266,6 @@ class bot_discord():
         except KeyError :
             await message.channel.send("Je ne connais pas cette crypto 😢")
 
-
 def long_short_rate(var,symbol):
     timeframe = 2  # (1h=2, 4h=1, 12h=4, 24h=5)
     timeframeDict = {2: "1 heure",
@@ -277,7 +301,6 @@ def liquidation():
     response = response.json()
 
     print(response)
-
 
 if __name__ == '__main__':
     bot_discord.bot.run(TOKEN)
