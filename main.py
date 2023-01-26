@@ -1,11 +1,13 @@
 import asyncio
 import json
-import requests
+
 import discord
-from discord.ext import commands, tasks
+import requests
+from discord.ext import commands
 from dotenv import load_dotenv
 
-#Data provided by CoinGecko
+
+# Data provided by CoinGecko
 
 def does_token_exist_coingecko(symbol):
     url = "https://api.coingecko.com/api/v3/simple/price?ids=" + symbol + "&vs_currencies=usd"
@@ -13,6 +15,8 @@ def does_token_exist_coingecko(symbol):
     response = response.json()
     if response[symbol]["usd"] is not None:
         return True
+    elif response is None:
+        return None
     else:
         return False
 
@@ -58,13 +62,17 @@ def get_price_coingecko(symbol):
         headers = {}
         response = requests.request("GET", url, headers=headers, data=params)
         response = response.json()
-        price = float(response[symbol]["usd"])
-        return float(price)
+        if response is not None:
+            price = float(response[symbol]["usd"])
+            return float(price)
+        else:
+            return None
     except KeyError:
         pass
 
+
 # https://coinglass.github.io/API-Reference/#general-info
-TOKEN = "***"
+TOKEN = "MTAyNTMyNjU0NjEyNDI3OTg1OA.GAIzNT.1rAO4z1HDCxqGduV4I7FJLI73ZhhwJdkXp9ymk"
 FILENAME = "alerts.json"
 CHANNEL_ID = 1025021355562913863  # dev/tests kino's server
 load_dotenv()
@@ -85,21 +93,21 @@ class bot_discord():
 
     bot = commands.Bot(intents=intents, command_prefix='!', description="En developpement..")
 
-  # repeat after every 10 seconds
+    # repeat after every 10 seconds
     async def check_alerts(self, *args):
         while True:
             data = read_file()
             for obj in data:
                 try:
                     actual_price = get_price_coingecko(obj['Token'])
-                    if obj['Type'] == "up":
-                        print("[UP] prix actuel {} {}/ {}".format(obj['Token'],actual_price,float(obj['Alert'])))
+                    if obj['Type'] == "up" and actual_price is not None:
+                        print("[UP] prix actuel {} {}/ {}".format(obj['Token'], actual_price, float(obj['Alert'])))
                         if actual_price >= float(obj['Alert']):
                             channel = bot_discord.bot.get_channel(CHANNEL_ID)
                             await channel.send('⚠️ Le token {} a atteint {} 📈'.format(obj['Token'], obj['Alert']))
                             remove_alert(obj['Token'], obj['Alert'])
-                    if obj['Type'] == "down":
-                        print("[DOWN] prix actuel {} {}/ {}".format(obj['Token'],actual_price,float(obj['Alert'])))
+                    if obj['Type'] == "down" and actual_price is not None:
+                        print("[DOWN] prix actuel {} {}/ {}".format(obj['Token'], actual_price, float(obj['Alert'])))
                         if actual_price < float(obj['Alert']):
                             channel = bot_discord.bot.get_channel(CHANNEL_ID)
                             await channel.send('⚠️ Le token {} a atteint {} 📉'.format(obj['Token'], obj['Alert']))
@@ -109,7 +117,6 @@ class bot_discord():
                     print("Erreur check alert {}".format(KeyError))
 
                 await asyncio.sleep(10)
-
 
     @bot.event
     async def on_ready():
@@ -136,20 +143,27 @@ class bot_discord():
     @bot.command()
     async def set_alert(message, symbol, price, *args):
         if does_token_exist_coingecko(symbol):
-            if not does_alert_exist(symbol, price):
-                data = []
-                if read_file() != None:
-                    data.extend(read_file())
-                with open(FILENAME, 'w') as file:
-                    if get_price_coingecko(symbol) > float(price):
-                        jsonData = [{"Token": symbol, "Alert": price, "Type": "down"}]  # DOWN
-                    elif get_price_coingecko(symbol) < float(price):
-                        jsonData = [{"Token": symbol, "Alert": price, "Type": "up"}]  # UP
-                    data.extend(jsonData)
-                    file = json.dump(data, file)
-                    await message.channel.send("⏰ Alerte programmé: {} à ${}".format(symbol, price))
-            else:
-                await message.channel.send("L'alerte pour {} à ${} est déjà active".format(symbol, price))
+            try:
+                if not does_alert_exist(symbol, price):
+                    data = []
+                    if read_file() != None:
+                        data.extend(read_file())
+                    with open(FILENAME, 'w') as file:
+                        actual_price = get_price_coingecko(symbol)
+                        if actual_price is not None:
+                            if actual_price > float(price):
+                                jsonData = [{"Token": symbol, "Alert": price, "Type": "down"}]  # DOWN
+                            elif actual_price < float(price):
+                                jsonData = [{"Token": symbol, "Alert": price, "Type": "up"}]  # UP
+                            data.extend(jsonData)
+                            file = json.dump(data, file)
+                            await message.channel.send("⏰ Alerte programmé: {} à ${}".format(symbol, price))
+                        else:
+                            await message.channel.send("Trop de requête, retentez dans 60s".format(symbol, price))
+                else:
+                    await message.channel.send("L'alerte pour {} à ${} est déjà active".format(symbol, price))
+            except KeyError:
+                print(KeyError)
 
     # Retire une alerte du fichier alerts.json
     @bot.command()
@@ -261,7 +275,7 @@ class bot_discord():
     @bot.command()
     async def convert(message, amount, symbol, *args):
         # TODO: faire une fonction pour recuperer le prix et réduire avec !price
-        try:
+        try :
             # symbol = str.upper(symbol)
             url = "https://api.coingecko.com/api/v3/simple/price?ids=" + symbol + "&vs_currencies=usd"
             params = {}
